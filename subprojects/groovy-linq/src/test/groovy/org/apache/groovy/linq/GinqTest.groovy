@@ -769,6 +769,21 @@ class GinqTest {
     }
 
     @Test
+    void "testGinq - from leftJoin where select - 1"() {
+        assertScript '''
+            def nums1 = [1, 2, 3]
+            def nums2 = [2, 3, 4, null, null]
+            assert [[2, 2], [3, 3]] == GINQ {
+                from n1 in nums1
+                leftJoin n2 in nums2
+                on n1 == n2
+                where n2 != null
+                select n1, n2
+            }.toList()
+        '''
+    }
+
+    @Test
     void "testGinq - from rightJoin select - 1"() {
         assertScript '''
             def nums1 = [1, 2, 3]
@@ -909,6 +924,21 @@ class GinqTest {
     }
 
     @Test
+    void "testGinq - from rightJoin where select - 1"() {
+        assertScript '''
+            def nums2 = [1, 2, 3]
+            def nums1 = [2, 3, 4, null, null]
+            assert [[2, 2], [3, 3]] == GINQ {
+                from n1 in nums1
+                rightJoin n2 in nums2
+                on n1 == n2
+                where n1 != null
+                select n1, n2
+            }.toList()
+        '''
+    }
+
+    @Test
     void "testGinq - from fullJoin select - 1"() {
         assertScript '''
             def nums1 = [1, 2, 3]
@@ -923,6 +953,21 @@ class GinqTest {
     }
 
     @Test
+    void "testGinq - from fullJoin where select - 1"() {
+        assertScript '''
+            def nums1 = [1, 2, 3]
+            def nums2 = [2, 3, 4]
+            assert [[2, 2], [3, 3]] == GINQ {
+                from n1 in nums1
+                fullJoin n2 in nums2
+                on n1 == n2
+                where n1 != null && n2 != null 
+                select n1, n2
+            }.toList()
+        '''
+    }
+
+    @Test
     void "testGinq - from crossJoin select - 1"() {
         assertScript '''
             def nums1 = [1, 2, 3]
@@ -930,6 +975,20 @@ class GinqTest {
             assert [[1, 3], [1, 4], [1, 5], [2, 3], [2, 4], [2, 5], [3, 3], [3, 4], [3, 5]] == GINQ {
                 from n1 in nums1
                 crossJoin n2 in nums2
+                select n1, n2
+            }.toList()
+        '''
+    }
+
+    @Test
+    void "testGinq - from crossJoin where select - 1"() {
+        assertScript '''
+            def nums1 = [1, 2, 3]
+            def nums2 = [3, 4, 5]
+            assert [[3, 3], [3, 5]] == GINQ {
+                from n1 in nums1
+                crossJoin n2 in nums2
+                where n1 > 2 && n2 != 4
                 select n1, n2
             }.toList()
         '''

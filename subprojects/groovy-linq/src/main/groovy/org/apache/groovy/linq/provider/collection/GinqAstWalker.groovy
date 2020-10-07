@@ -136,12 +136,16 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
             )
         }
 
-        OnExpression onExpression = filterExpressionList.isEmpty() ? null : (OnExpression) filterExpressionList.get(0)
-
-        WhereExpression whereExpression = null
-        if (filterExpressionListSize > 1) {
-            whereExpression = (WhereExpression) filterExpressionList.get(1)
+        OnExpression onExpression
+        int whereExpressionPos
+        if (joinExpression.isCrossJoin()) {
+            onExpression = null
+            whereExpressionPos = 0
+        } else {
+            onExpression = (OnExpression) filterExpressionList.get(0)
+            whereExpressionPos = 1
         }
+        WhereExpression whereExpression = filterExpressionList.size() < (whereExpressionPos + 1) ? null : (WhereExpression) filterExpressionList.get(whereExpressionPos)
 
         MethodCallExpression joinMethodCallExpression = constructJoinMethodCallExpression(receiver, receiverAliasExpr, joinExpression, onExpression, whereExpression)
 
