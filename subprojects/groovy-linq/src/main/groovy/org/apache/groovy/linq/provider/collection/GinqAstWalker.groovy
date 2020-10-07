@@ -32,12 +32,14 @@ import org.apache.groovy.linq.dsl.expression.OnExpression
 import org.apache.groovy.linq.dsl.expression.SelectExpression
 import org.apache.groovy.linq.dsl.expression.SimpleGinqExpression
 import org.apache.groovy.linq.dsl.expression.WhereExpression
+import org.codehaus.groovy.GroovyBugError
 import org.codehaus.groovy.ast.ClassHelper
 import org.codehaus.groovy.ast.expr.ArgumentListExpression
 import org.codehaus.groovy.ast.expr.CastExpression
 import org.codehaus.groovy.ast.expr.ClassExpression
 import org.codehaus.groovy.ast.expr.ConstantExpression
 import org.codehaus.groovy.ast.expr.ConstructorCallExpression
+import org.codehaus.groovy.ast.expr.EmptyExpression
 import org.codehaus.groovy.ast.expr.Expression
 import org.codehaus.groovy.ast.expr.ExpressionTransformer
 import org.codehaus.groovy.ast.expr.GStringExpression
@@ -134,7 +136,7 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
             )
         }
 
-        OnExpression onExpression = (OnExpression) filterExpressionList.get(0)
+        OnExpression onExpression = filterExpressionList.isEmpty() ? null : (OnExpression) filterExpressionList.get(0)
 
         WhereExpression whereExpression = null
         if (filterExpressionListSize > 1) {
@@ -173,7 +175,7 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
         MethodCallExpression joinMethodCallExpression = callX(receiver, joinExpression.joinName,
                 args(
                         constructFromMethodCallExpression(joinExpression.dataSourceExpr),
-                        lambdaX(
+                        null == onExpression ? EmptyExpression.INSTANCE : lambdaX(
                                 params(
                                         param(ClassHelper.DYNAMIC_TYPE, receiverAliasExpr.text),
                                         param(ClassHelper.DYNAMIC_TYPE, joinExpression.aliasExpr.text)
@@ -185,7 +187,10 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
 
         if (joinExpression.crossJoin) {
             // cross join does not need `on` clause
-            ((ArgumentListExpression) joinMethodCallExpression.arguments).getExpressions().removeLast()
+            Expression lastArgumentExpression = ((ArgumentListExpression) joinMethodCallExpression.arguments).getExpressions().removeLast()
+            if (EmptyExpression.INSTANCE !== lastArgumentExpression) {
+                throw new GroovyBugError("Wrong argument removed")
+            }
         }
 
         if (whereExpression) {
