@@ -20,7 +20,7 @@ package org.apache.groovy.linq.dsl;
 
 import org.apache.groovy.linq.dsl.expression.FromExpression;
 import org.apache.groovy.linq.dsl.expression.GinqExpression;
-import org.apache.groovy.linq.dsl.expression.InnerJoinExpression;
+import org.apache.groovy.linq.dsl.expression.JoinExpression;
 import org.apache.groovy.linq.dsl.expression.OnExpression;
 import org.apache.groovy.linq.dsl.expression.SelectExpression;
 import org.apache.groovy.linq.dsl.expression.SimpleGinqExpression;
@@ -35,7 +35,7 @@ import org.apache.groovy.linq.dsl.expression.WhereExpression;
 public interface GinqVisitor<R> {
     R visitSimpleGinqExpression(SimpleGinqExpression simpleGinqExpression);
     R visitFromExpression(FromExpression fromExpression);
-    R visitInnerJoinExpression(InnerJoinExpression innerJoinExpression);
+    R visitJoinExpression(JoinExpression joinExpression);
     R visitOnExpression(OnExpression onExpression);
     R visitWhereExpression(WhereExpression whereExpression);
     R visitSelectExpression(SelectExpression selectExpression);

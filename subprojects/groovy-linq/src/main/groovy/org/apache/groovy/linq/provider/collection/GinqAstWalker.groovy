@@ -27,7 +27,6 @@ import org.apache.groovy.linq.dsl.expression.DataSourceExpression
 import org.apache.groovy.linq.dsl.expression.FilterExpression
 import org.apache.groovy.linq.dsl.expression.FromExpression
 import org.apache.groovy.linq.dsl.expression.GinqExpression
-import org.apache.groovy.linq.dsl.expression.InnerJoinExpression
 import org.apache.groovy.linq.dsl.expression.JoinExpression
 import org.apache.groovy.linq.dsl.expression.OnExpression
 import org.apache.groovy.linq.dsl.expression.SelectExpression
@@ -50,6 +49,7 @@ import org.codehaus.groovy.ast.expr.VariableExpression
 import org.codehaus.groovy.ast.tools.GeneralUtils
 import org.codehaus.groovy.control.SourceUnit
 
+import static org.codehaus.groovy.ast.tools.GeneralUtils.args
 import static org.codehaus.groovy.ast.tools.GeneralUtils.callX
 import static org.codehaus.groovy.ast.tools.GeneralUtils.lambdaX
 import static org.codehaus.groovy.ast.tools.GeneralUtils.param
@@ -84,7 +84,7 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
             joinExpression.putNodeMetaData(__DATA_SOURCE_EXPRESSION, lastJoinExpression ?: fromExpression)
 
             lastJoinExpression = joinExpression
-            lastJoinMethodCallExpression = this.visitInnerJoinExpression((InnerJoinExpression) lastJoinExpression)
+            lastJoinMethodCallExpression = this.visitJoinExpression(lastJoinExpression)
         }
 
         if (lastJoinMethodCallExpression) {
@@ -103,7 +103,7 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
 
     @Override
     MethodCallExpression visitFromExpression(FromExpression fromExpression) {
-        MethodCallExpression fromMethodCallExpression = constructFromMethodCallExpression(fromExpression)
+        MethodCallExpression fromMethodCallExpression = constructFromMethodCallExpression(fromExpression.dataSourceExpr)
 
         List<FilterExpression> filterExpressionList = fromExpression.getFilterExpressionList()
         if (filterExpressionList) {
@@ -118,18 +118,18 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
     }
 
     @Override
-    MethodCallExpression visitInnerJoinExpression(InnerJoinExpression innerJoinExpression) {
-        Expression receiver = innerJoinExpression.getNodeMetaData(__METHOD_CALL_RECEIVER)
-        DataSourceExpression dataSourceExpression = innerJoinExpression.getNodeMetaData(__DATA_SOURCE_EXPRESSION)
+    MethodCallExpression visitJoinExpression(JoinExpression joinExpression) {
+        Expression receiver = joinExpression.getNodeMetaData(__METHOD_CALL_RECEIVER)
+        DataSourceExpression dataSourceExpression = joinExpression.getNodeMetaData(__DATA_SOURCE_EXPRESSION)
         Expression receiverAliasExpr = dataSourceExpression.aliasExpr
-        List<FilterExpression> filterExpressionList = innerJoinExpression.getFilterExpressionList()
+        List<FilterExpression> filterExpressionList = joinExpression.getFilterExpressionList()
         int filterExpressionListSize = filterExpressionList.size()
 
-        if (0 == filterExpressionListSize) {
+        if (0 == filterExpressionListSize && !joinExpression.crossJoin) {
             this.collectSyntaxError(
                     new GinqSyntaxError(
-                            "`on` clause is expected for `innerJoin`",
-                            innerJoinExpression.getLineNumber(), innerJoinExpression.getColumnNumber()
+                            "`on` clause is expected for `" + joinExpression.joinName + "`",
+                            joinExpression.getLineNumber(), joinExpression.getColumnNumber()
                     )
             )
         }
@@ -141,9 +141,9 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
             whereExpression = (WhereExpression) filterExpressionList.get(1)
         }
 
-        MethodCallExpression innerJoinMethodCallExpression = constructInnerJoinMethodCallExpression(receiver, receiverAliasExpr, innerJoinExpression, onExpression, whereExpression)
+        MethodCallExpression joinMethodCallExpression = constructJoinMethodCallExpression(receiver, receiverAliasExpr, joinExpression, onExpression, whereExpression)
 
-        return innerJoinMethodCallExpression
+        return joinMethodCallExpression
     }
 
     @Override
@@ -152,13 +152,13 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
     }
 
     @CompileDynamic
-    private MethodCallExpression constructFromMethodCallExpression(FromExpression fromExpression) {
+    private MethodCallExpression constructFromMethodCallExpression(Expression dataSourceExpr) {
         MethodCallExpression fromMethodCallExpression = macro {
             $v{ makeQueryableCollectionClassExpression() }.from($v {
-                if (fromExpression.dataSourceExpr instanceof SimpleGinqExpression) {
-                    return this.visitSimpleGinqExpression((SimpleGinqExpression) fromExpression.dataSourceExpr)
+                if (dataSourceExpr instanceof SimpleGinqExpression) {
+                    return this.visitSimpleGinqExpression((SimpleGinqExpression) dataSourceExpr)
                 } else {
-                    return fromExpression.dataSourceExpr
+                    return dataSourceExpr
                 }
             })
         }
@@ -166,32 +166,35 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
         return fromMethodCallExpression
     }
 
-    @CompileDynamic
-    private MethodCallExpression constructInnerJoinMethodCallExpression(
-            Expression receiver, Expression receiverAliasExpr, InnerJoinExpression innerJoinExpression,
+    private MethodCallExpression constructJoinMethodCallExpression(
+            Expression receiver, Expression receiverAliasExpr, JoinExpression joinExpression,
             OnExpression onExpression, WhereExpression whereExpression) {
 
-        MethodCallExpression innerJoinMethodCallExpression = macro {
-            $v{receiver}.innerJoin($v{ makeQueryableCollectionClassExpression() }.from($v { innerJoinExpression.dataSourceExpr }))
-        }
-
-        ((ArgumentListExpression) innerJoinMethodCallExpression.getArguments()).getExpressions().add(
-                lambdaX(
-                        params(
-                                param(ClassHelper.DYNAMIC_TYPE, receiverAliasExpr.text),
-                                param(ClassHelper.DYNAMIC_TYPE, innerJoinExpression.aliasExpr.text)
-                        ),
-                        stmt(onExpression.getFilterExpr())
+        MethodCallExpression joinMethodCallExpression = callX(receiver, joinExpression.joinName,
+                args(
+                        constructFromMethodCallExpression(joinExpression.dataSourceExpr),
+                        lambdaX(
+                                params(
+                                        param(ClassHelper.DYNAMIC_TYPE, receiverAliasExpr.text),
+                                        param(ClassHelper.DYNAMIC_TYPE, joinExpression.aliasExpr.text)
+                                ),
+                                stmt(onExpression.getFilterExpr())
+                        )
                 )
         )
 
+        if (joinExpression.crossJoin) {
+            // cross join does not need `on` clause
+            ((ArgumentListExpression) joinMethodCallExpression.arguments).getExpressions().removeLast()
+        }
+
         if (whereExpression) {
-            whereExpression.putNodeMetaData(__DATA_SOURCE_EXPRESSION, innerJoinExpression)
-            whereExpression.putNodeMetaData(__METHOD_CALL_RECEIVER, innerJoinMethodCallExpression)
+            whereExpression.putNodeMetaData(__DATA_SOURCE_EXPRESSION, joinExpression)
+            whereExpression.putNodeMetaData(__METHOD_CALL_RECEIVER, joinMethodCallExpression)
             return visitWhereExpression(whereExpression)
         }
 
-        return innerJoinMethodCallExpression
+        return joinMethodCallExpression
     }
 
     @Override
@@ -245,7 +248,7 @@ class GinqAstWalker implements GinqVisitor<Object>, SyntaxErrorReportable {
             nameExpressionList << nameExpression
         }
 
-        ConstructorCallExpression namedListCtorCallExpression = GeneralUtils.ctorX(ClassHelper.make(NamedList.class), GeneralUtils.args(new ListExpression(elementExpressionList), new ListExpression(nameExpressionList)))
+        ConstructorCallExpression namedListCtorCallExpression = GeneralUtils.ctorX(ClassHelper.make(NamedList.class), args(new ListExpression(elementExpressionList), new ListExpression(nameExpressionList)))
         namedListCtorCallExpression
     }
 

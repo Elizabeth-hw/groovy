@@ -18,15 +18,41 @@
  */
 package org.apache.groovy.linq.dsl.expression;
 
+import org.apache.groovy.linq.dsl.GinqVisitor;
 import org.codehaus.groovy.ast.expr.Expression;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Represents join expression
  *
  * @since 4.0.0
  */
-public abstract class JoinExpression extends DataSourceExpression {
-    public JoinExpression(Expression aliasExpr, Expression dataSourceExpr) {
+public class JoinExpression extends DataSourceExpression {
+    private static final String CROSS_JOIN = "crossJoin";
+    private static final List<String> JOIN_NAME_LIST = Arrays.asList("innerJoin", "leftJoin", "rightJoin", "fullJoin", CROSS_JOIN);
+    private final String joinName;
+
+    public JoinExpression(String joinName, Expression aliasExpr, Expression dataSourceExpr) {
         super(aliasExpr, dataSourceExpr);
+        this.joinName = joinName;
+    }
+
+    public static boolean isJoinExpression(String methodName) {
+        return JOIN_NAME_LIST.contains(methodName);
+    }
+
+    public boolean isCrossJoin() {
+        return CROSS_JOIN.equals(joinName);
+    }
+
+    @Override
+    public <R> R accept(GinqVisitor<R> visitor) {
+        return visitor.visitJoinExpression(this);
+    }
+
+    public String getJoinName() {
+        return joinName;
     }
 }

@@ -22,7 +22,6 @@ import org.apache.groovy.linq.dsl.expression.FilterExpression;
 import org.apache.groovy.linq.dsl.expression.FilterableExpression;
 import org.apache.groovy.linq.dsl.expression.FromExpression;
 import org.apache.groovy.linq.dsl.expression.GinqExpression;
-import org.apache.groovy.linq.dsl.expression.InnerJoinExpression;
 import org.apache.groovy.linq.dsl.expression.JoinExpression;
 import org.apache.groovy.linq.dsl.expression.OnExpression;
 import org.apache.groovy.linq.dsl.expression.SelectExpression;
@@ -65,7 +64,7 @@ public class GinqAstBuilder extends CodeVisitorSupport implements SyntaxErrorRep
             currentSimpleGinqExpression = new SimpleGinqExpression(); // store the result
         }
 
-        if ("from".equals(methodName)  || "innerJoin".equals(methodName)) {
+        if ("from".equals(methodName)  || JoinExpression.isJoinExpression(methodName)) {
             ArgumentListExpression arguments = (ArgumentListExpression) call.getArguments();
             if (arguments.getExpressions().size() != 1) {
                 this.collectSyntaxError(
@@ -96,12 +95,12 @@ public class GinqAstBuilder extends CodeVisitorSupport implements SyntaxErrorRep
                 latestSimpleGinqExpression = null;
             }
 
-            FilterableExpression filterableExpression = null;
+            FilterableExpression filterableExpression;
             if ("from".equals(methodName)) {
                 filterableExpression = new FromExpression(aliasExpr, dataSourceExpr);
                 currentSimpleGinqExpression.setFromExpression((FromExpression) filterableExpression);
-            } else if ("innerJoin".equals(methodName)) {
-                filterableExpression = new InnerJoinExpression(aliasExpr, dataSourceExpr);
+            } else {
+                filterableExpression = new JoinExpression(methodName, aliasExpr, dataSourceExpr);
                 currentSimpleGinqExpression.addJoinExpression((JoinExpression) filterableExpression);
             }
             filterableExpression.setSourcePosition(call);
